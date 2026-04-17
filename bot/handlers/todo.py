@@ -1,19 +1,21 @@
 """
 handlers/todo.py — /todo commands and inline callbacks for the todo list.
+TodoStorage is injected via aiogram DI (dp["todo"]).
 
 Commands
 --------
-/todo                   — show active tasks (same as button)
-/todo add Купить хлеб   — add normal-priority task
-/todo add ! Купить хлеб — add high-priority task  (leading !)
-/todo done <id>         — mark done
-/todo del  <id>         — delete
+/todo                    — show active tasks
+/todo add Купить хлеб    — add normal-priority task
+/todo add ! Купить хлеб  — add high-priority task (leading !)
+/todo done <id>          — mark done
+/todo del  <id>          — delete
 /todo edit <id> New text — edit text
-/todo all               — show active + completed today
+/todo all                — show active + completed today
 
-Inline callbacks (all prefixed todo_)
---------------------------------------
+Inline callbacks (prefixed todo_)
+----------------------------------
 todo_list               — refresh active list
+todo_all                — show active + done today
 todo_done_<id>          — mark done
 todo_undone_<id>        — mark not done
 todo_del_<id>           — delete (with confirm)
@@ -36,20 +38,19 @@ from bot.config import settings
 from bot.todo import TodoStorage
 
 router = Router()
-storage = TodoStorage(settings.data_file)
+
 
 # ── Keyboard builders ─────────────────────────────────────────────────────────
 
 
 def _task_row(t: dict) -> list[InlineKeyboardButton]:
-    """One row per task: [✅/↩ text] [⬆/⬇ priority] [🗑]"""
+    """One row per task: [label] [✓/↩] [⬆/⬇ priority] [🗑]"""
     tid = t["id"]
     pri_icon = "🔴" if t["priority"] == "high" else "⚪"
     label = f"{'✅ ' if t['done'] else ''}{pri_icon} {t['text'][:35]}"
 
     toggle_cb = f"todo_undone_{tid}" if t["done"] else f"todo_done_{tid}"
     toggle_tx = "↩" if t["done"] else "✓"
-
     pri_cb = f"todo_norm_{tid}" if t["priority"] == "high" else f"todo_hi_{tid}"
     pri_tx = "⬇ приор." if t["priority"] == "high" else "⬆ приор."
 
@@ -61,10 +62,10 @@ def _task_row(t: dict) -> list[InlineKeyboardButton]:
     ]
 
 
-def todo_list_kb(tasks: list[dict], show_done: bool = False) -> InlineKeyboardMarkup:
+def todo_list_kb(tasks: list[dict]) -> InlineKeyboardMarkup:
     rows = [_task_row(t) for t in tasks]
     rows.append([
-        InlineKeyboardButton(text="➕ Добавить", callback_data="todo_new"),
+        InlineKeyboardButton(text="➕ Добавить", callback_data="todo_new_fsm"),
         InlineKeyboardButton(text="📋 + выполненные", callback_data="todo_all"),
     ])
     rows.append([InlineKeyboardButton(text="« Меню", callback_data="main_menu")])
@@ -74,7 +75,7 @@ def todo_list_kb(tasks: list[dict], show_done: bool = False) -> InlineKeyboardMa
 def todo_empty_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="➕ Добавить задачу", callback_data="todo_new")],
+            [InlineKeyboardButton(text="➕ Добавить задачу", callback_data="todo_new_fsm")],
             [InlineKeyboardButton(text="« Меню", callback_data="main_menu")],
         ]
     )
@@ -117,8 +118,8 @@ def _fmt_list(tasks: list[dict], title: str = "📋 <b>Задачи</b>") -> str
     return "\n".join(lines)
 
 
-def _fmt_active(tasks: list[dict]) -> str:
-    s = storage.stats(settings.timezone)
+def _fmt_active(tasks: list[dict], todo: TodoStorage) -> str:
+    s = todo.stats(settings.timezone)
     header = (
         f"📋 <b>Задачи</b>  "
         f"[активных: {s['active']}  🔴 важных: {s['high']}  ✅ сегодня: {s['done_today']}]"
@@ -141,7 +142,7 @@ def guard_cb(cq: CallbackQuery) -> bool:
 
 
 @router.message(Command("todo"))
-async def cmd_todo(msg: Message):
+async def cmd_todo(msg: Message, todo: TodoStorage):
     if not guard_msg(msg):
         return
 
@@ -151,9 +152,9 @@ async def cmd_todo(msg: Message):
 
     # /todo  →  show list
     if sub is None:
-        tasks = storage.get_active()
+        tasks = todo.get_active()
         await msg.answer(
-            _fmt_active(tasks),
+            _fmt_active(tasks, todo),
             parse_mode="HTML",
             reply_markup=todo_list_kb(tasks) if tasks else todo_empty_kb(),
         )
@@ -180,7 +181,7 @@ async def cmd_todo(msg: Message):
         if len(rest) > 200:
             await msg.answer("Слишком длинный текст (макс. 200 символов).")
             return
-        item = storage.add(rest, priority)
+        item = todo.add(rest, priority)
         pri = "🔴 Важная" if item["priority"] == "high" else "⚪ Обычная"
         await msg.answer(
             f"➕ Добавлено: <b>{item['text']}</b>\n{pri}",
@@ -192,7 +193,7 @@ async def cmd_todo(msg: Message):
     # /todo done <id>
     if sub == "done":
         tid = parts[2].strip() if len(parts) > 2 else ""
-        if not tid or not storage.complete(tid):
+        if not tid or not todo.complete(tid):
             await msg.answer("Задача не найдена или уже выполнена.")
             return
         await msg.answer("✅ Выполнено!", reply_markup=back_todo_kb())
@@ -201,7 +202,7 @@ async def cmd_todo(msg: Message):
     # /todo del <id>
     if sub == "del":
         tid = parts[2].strip() if len(parts) > 2 else ""
-        if not tid or not storage.delete(tid):
+        if not tid or not todo.delete(tid):
             await msg.answer("Задача не найдена.")
             return
         await msg.answer("🗑 Удалено.", reply_markup=back_todo_kb())
@@ -215,7 +216,7 @@ async def cmd_todo(msg: Message):
             await msg.answer("Использование: /todo edit <id> Новый текст")
             return
         tid, new_text = ep[0], ep[1].strip()
-        if not storage.edit(tid, new_text):
+        if not todo.edit(tid, new_text):
             await msg.answer("Задача не найдена.")
             return
         await msg.answer(
@@ -227,7 +228,7 @@ async def cmd_todo(msg: Message):
 
     # /todo all  — active + done today
     if sub == "all":
-        tasks = storage.get_all()
+        tasks = todo.get_all()
         await msg.answer(
             _fmt_list(tasks, "📋 <b>Все задачи (сегодня)</b>"),
             parse_mode="HTML",
@@ -241,10 +242,9 @@ async def cmd_todo(msg: Message):
 # ── Inline callbacks ──────────────────────────────────────────────────────────
 
 
-async def _refresh(cq: CallbackQuery):
-    """Re-render the active task list in-place."""
-    tasks = storage.get_active()
-    text = _fmt_active(tasks)
+async def _refresh(cq: CallbackQuery, todo: TodoStorage) -> None:
+    tasks = todo.get_active()
+    text = _fmt_active(tasks, todo)
     kb = todo_list_kb(tasks) if tasks else todo_empty_kb()
     try:
         await cq.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
@@ -254,17 +254,17 @@ async def _refresh(cq: CallbackQuery):
 
 
 @router.callback_query(lambda c: c.data == "todo_list")
-async def cb_todo_list(cq: CallbackQuery):
+async def cb_todo_list(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
-    await _refresh(cq)
+    await _refresh(cq, todo)
 
 
 @router.callback_query(lambda c: c.data == "todo_all")
-async def cb_todo_all(cq: CallbackQuery):
+async def cb_todo_all(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
-    tasks = storage.get_all()
+    tasks = todo.get_all()
     text = _fmt_list(tasks, "📋 <b>Все задачи (сегодня)</b>")
     kb = todo_list_kb([t for t in tasks if not t["done"]])
     try:
@@ -291,52 +291,47 @@ async def cb_todo_new(cq: CallbackQuery):
 
 
 @router.callback_query(lambda c: c.data.startswith("todo_done_"))
-async def cb_todo_done(cq: CallbackQuery):
+async def cb_todo_done(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
-    tid = cq.data.removeprefix("todo_done_")
-    storage.complete(tid)
+    todo.complete(cq.data.removeprefix("todo_done_"))
     await cq.answer("✅ Выполнено!")
-    await _refresh(cq)
+    await _refresh(cq, todo)
 
 
 @router.callback_query(lambda c: c.data.startswith("todo_undone_"))
-async def cb_todo_undone(cq: CallbackQuery):
+async def cb_todo_undone(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
-    tid = cq.data.removeprefix("todo_undone_")
-    storage.uncomplete(tid)
+    todo.uncomplete(cq.data.removeprefix("todo_undone_"))
     await cq.answer("↩ Отмечено как активное")
-    await _refresh(cq)
+    await _refresh(cq, todo)
 
 
 @router.callback_query(lambda c: c.data.startswith("todo_hi_"))
-async def cb_todo_hi(cq: CallbackQuery):
+async def cb_todo_hi(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
-    tid = cq.data.removeprefix("todo_hi_")
-    storage.set_priority(tid, "high")
+    todo.set_priority(cq.data.removeprefix("todo_hi_"), "high")
     await cq.answer("🔴 Высокий приоритет")
-    await _refresh(cq)
+    await _refresh(cq, todo)
 
 
 @router.callback_query(lambda c: c.data.startswith("todo_norm_"))
-async def cb_todo_norm(cq: CallbackQuery):
+async def cb_todo_norm(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
-    tid = cq.data.removeprefix("todo_norm_")
-    storage.set_priority(tid, "normal")
+    todo.set_priority(cq.data.removeprefix("todo_norm_"), "normal")
     await cq.answer("⚪ Обычный приоритет")
-    await _refresh(cq)
+    await _refresh(cq, todo)
 
 
 @router.callback_query(lambda c: c.data.startswith("todo_del_"))
-async def cb_todo_del(cq: CallbackQuery):
+async def cb_todo_del(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
     tid = cq.data.removeprefix("todo_del_")
-    data = storage._load()  # noqa: SLF001
-    item = data.get("todos", {}).get(tid)
+    item = todo.get_task(tid)  # public method, no _load() leak
     text = item["text"] if item else tid
     try:
         await cq.message.edit_text(
@@ -354,16 +349,15 @@ async def cb_todo_del(cq: CallbackQuery):
 
 
 @router.callback_query(lambda c: c.data.startswith("todo_confirm_del_"))
-async def cb_todo_confirm_del(cq: CallbackQuery):
+async def cb_todo_confirm_del(cq: CallbackQuery, todo: TodoStorage):
     if not guard_cb(cq):
         return
-    tid = cq.data.removeprefix("todo_confirm_del_")
-    storage.delete(tid)
+    todo.delete(cq.data.removeprefix("todo_confirm_del_"))
     await cq.answer("🗑 Удалено")
-    await _refresh(cq)
+    await _refresh(cq, todo)
 
 
 @router.callback_query(lambda c: c.data.startswith("todo_info_"))
 async def cb_todo_info(cq: CallbackQuery):
-    """Tap on task label — do nothing visible, just ack."""
+    """Tap on task label — just ack, no action."""
     await cq.answer()

@@ -44,9 +44,7 @@ class TodoStorage:
         return {}
 
     def _save(self, data: dict) -> None:
-        self._path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        self._path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _todos(self, data: dict) -> dict:
         return data.setdefault("todos", {})
@@ -133,11 +131,7 @@ class TodoStorage:
         """Return tasks completed today."""
         today = datetime.now(tz).date().isoformat()
         todos = self._todos(self._load())
-        return [
-            t
-            for t in todos.values()
-            if t["done"] and t.get("done_at", "")[:10] == today
-        ]
+        return [t for t in todos.values() if t["done"] and t.get("done_at", "")[:10] == today]
 
     def get_all(self) -> list[dict]:
         """Return all tasks (active + done), high priority first."""
@@ -146,6 +140,10 @@ class TodoStorage:
             todos.values(),
             key=lambda t: (t["done"], t["priority"] != "high", t["created"]),
         )
+
+    def get_task(self, tid: str) -> dict | None:
+        """Return a single task by id, or None if not found."""
+        return self._todos(self._load()).get(tid)
 
     def stats(self, tz: ZoneInfo) -> dict:
         """Return quick stats dict."""

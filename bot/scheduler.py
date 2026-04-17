@@ -24,9 +24,15 @@ log = logging.getLogger(__name__)
 BUILTIN_TEMPLATES = {"morning", "evening", "summary"}
 
 
-async def reminder_loop(bot: Bot, storage: Storage, cfg: Settings) -> None:
+async def safe_send(bot: Bot, user_id: int, text: str) -> None:
+    try:
+        await bot.send_message(user_id, text, parse_mode="HTML")
+    except Exception as e:
+        log.error("send_message failed: %s", e)
+
+
+async def reminder_loop(bot: Bot, storage: Storage, todo: TodoStorage, cfg: Settings) -> None:
     sent: dict[str, str] = {}  # reminder_key → last-sent date string
-    todo = TodoStorage(cfg.data_file)
     last_archive_date: str = ""
 
     while True:
@@ -59,7 +65,7 @@ async def reminder_loop(bot: Bot, storage: Storage, cfg: Settings) -> None:
 
                 text = _build_message(key, r, storage, todo, cfg, goal, now)
                 if text and cfg.allowed_user_id:
-                    await bot.send_message(cfg.allowed_user_id, text, parse_mode="HTML")
+                    await safe_send(bot, cfg.allowed_user_id, text)
                     log.info("Sent reminder '%s' (%s)", key, r.get("label", key))
 
         except asyncio.CancelledError:
@@ -81,8 +87,7 @@ def _build_message(
 
     # ── Утреннее ──────────────────────────────────────────────────────────────
     if key == "morning":
-        yesterday = (now.date() - timedelta(days=1)).isoformat()
-        y_val = storage._load()["days"].get(yesterday, 0)  # noqa: SLF001
+        y_val = storage.get_day(now.date() - timedelta(days=1))
         streak = storage.calc_streak(cfg.timezone)
         active = todo.get_active()
 
@@ -94,8 +99,7 @@ def _build_message(
         )
         if active:
             lines = "\n".join(
-                f"  {'🔴' if t['priority'] == 'high' else '⚪'} {t['text']}"
-                for t in active[:10]
+                f"  {'🔴' if t['priority'] == 'high' else '⚪'} {t['text']}" for t in active[:10]
             )
             text += f"\n\n📋 <b>Задачи на сегодня ({len(active)}):</b>\n{lines}"
             if len(active) > 10:
@@ -155,8 +159,7 @@ def _build_message(
     )
     if active:
         lines = "\n".join(
-            f"  {'🔴' if t['priority'] == 'high' else '⚪'} {t['text']}"
-            for t in active[:5]
+            f"  {'🔴' if t['priority'] == 'high' else '⚪'} {t['text']}" for t in active[:5]
         )
         text += f"\n\n📋 <b>Активных задач: {len(active)}</b>\n{lines}"
     return text

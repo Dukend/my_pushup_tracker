@@ -6,7 +6,16 @@ from __future__ import annotations
 
 
 def progress_bar(current: int, goal: int) -> str:
-    pct = min(int(current / goal * 100), 100) if goal else 0
+    if not goal:
+        return f"[{'█' * 10}] —"
+    pct = int(current / goal * 100)
+    if pct >= 200:
+        # Double goal — show flame
+        return f"[{'█' * 10}] {pct}% 🔥🔥"
+    if pct > 100:
+        # Over goal — full bar + overflow indicator
+        overflow = min((pct - 100) // 10, 5)
+        return f"[{'█' * 10}{'▓' * overflow}] {pct}% 🔥"
     fill = pct // 10
     return f"[{'█' * fill}{'░' * (10 - fill)}] {pct}%"
 
@@ -23,9 +32,7 @@ def fmt_stats(today: int, total: int, goal: int, streak: int, record: int) -> st
     )
 
 
-def fmt_add(
-    n: int, today: int, total: int, goal: int, new_record: bool, just_reached: bool
-) -> str:
+def fmt_add(n: int, today: int, total: int, goal: int, new_record: bool, just_reached: bool) -> str:
     text = (
         f"✅ +{n} отжиманий\n\n"
         f"📅 Сегодня: <b>{today}</b> / {goal}\n"
@@ -41,11 +48,25 @@ def fmt_add(
 
 def fmt_history(history: list[tuple[str, int]], goal: int) -> str:
     lines = []
+    week_total = 0
+    days_hit = 0
     for i, (d, val) in enumerate(history):
-        mark = "✅" if val >= goal else "·"
+        week_total += val
+        hit = val >= goal
+        if hit:
+            days_hit += 1
+        mark = "✅" if hit else "·"
         bar = "▓" * min(val // 10, 15)
         label = "сегодня" if i == len(history) - 1 else f"-{len(history) - 1 - i}д"
         lines.append(f"{mark} <code>{d} ({label:>7}): {val:4} {bar}</code>")
+
+    # Weekly summary line
+    avg = week_total // len(history) if history else 0
+    lines.append(
+        f"\n<b>Итого за 7 дней:</b> {week_total}  "
+        f"│  цель выполнена: {days_hit}/7  "
+        f"│  среднее: {avg}/день"
+    )
     return "📅 <b>Последние 7 дней</b>\n\n" + "\n".join(lines)
 
 

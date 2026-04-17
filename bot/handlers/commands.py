@@ -1,8 +1,9 @@
 """
 handlers/commands.py — slash-command handlers.
+Storage is injected via aiogram DI (dp["storage"]).
 """
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
@@ -12,14 +13,13 @@ from bot.keyboards import back_to_menu, main_menu
 from bot.storage import Storage
 
 router = Router()
-storage = Storage(settings.data_file)
 
 
 def guard(msg: Message) -> bool:
     return settings.allowed(msg.from_user.id)
 
 
-# ── /start  /help ─────────────────────────────────────────────────────────────
+# ── /start  /help  /menu ──────────────────────────────────────────────────────
 
 
 @router.message(Command("start", "help", "menu"))
@@ -41,21 +41,28 @@ async def cmd_start(msg: Message):
     )
 
 
-# ── /add ─────────────────────────────────────────────────────────────────────
+# ── /add ──────────────────────────────────────────────────────────────────────
 
 
 @router.message(Command("add"))
-async def cmd_add(msg: Message):
+async def cmd_add(msg: Message, storage: Storage):
     if not guard(msg):
         return
     parts = msg.text.split(maxsplit=1)
     if len(parts) < 2 or not parts[1].strip().isdigit():
         await msg.answer("Использование: /add 30", reply_markup=back_to_menu())
         return
-    await _do_add(msg, int(parts[1].strip()))
+    await _do_add(msg, storage, int(parts[1].strip()))
 
 
-async def _do_add(msg: Message, n: int):
+@router.message(F.text.regexp(r"^\d+$"))
+async def msg_number(msg: Message, storage: Storage):
+    if not guard(msg):
+        return
+    await _do_add(msg, storage, int(msg.text))
+
+
+async def _do_add(msg: Message, storage: Storage, n: int):
     if not (1 <= n <= 10_000):
         await msg.answer("Число должно быть от 1 до 10 000.")
         return
@@ -70,23 +77,11 @@ async def _do_add(msg: Message, n: int):
     )
 
 
-# ── plain number ──────────────────────────────────────────────────────────────
-
-from aiogram import F  # noqa: E402 (placed here to keep router logic together)
-
-
-@router.message(F.text.regexp(r"^\d+$"))
-async def msg_number(msg: Message):
-    if not guard(msg):
-        return
-    await _do_add(msg, int(msg.text))
-
-
 # ── /today  /total  /stats  /history  /record  /undo ─────────────────────────
 
 
 @router.message(Command("today"))
-async def cmd_today(msg: Message):
+async def cmd_today(msg: Message, storage: Storage):
     if not guard(msg):
         return
     today = storage.get_today(settings.timezone)
@@ -99,7 +94,7 @@ async def cmd_today(msg: Message):
 
 
 @router.message(Command("total"))
-async def cmd_total(msg: Message):
+async def cmd_total(msg: Message, storage: Storage):
     if not guard(msg):
         return
     await msg.answer(
@@ -110,7 +105,7 @@ async def cmd_total(msg: Message):
 
 
 @router.message(Command("stats"))
-async def cmd_stats(msg: Message):
+async def cmd_stats(msg: Message, storage: Storage):
     if not guard(msg):
         return
     await msg.answer(
@@ -127,7 +122,7 @@ async def cmd_stats(msg: Message):
 
 
 @router.message(Command("history"))
-async def cmd_history(msg: Message):
+async def cmd_history(msg: Message, storage: Storage):
     if not guard(msg):
         return
     await msg.answer(
@@ -138,7 +133,7 @@ async def cmd_history(msg: Message):
 
 
 @router.message(Command("record"))
-async def cmd_record(msg: Message):
+async def cmd_record(msg: Message, storage: Storage):
     if not guard(msg):
         return
     await msg.answer(
@@ -149,7 +144,7 @@ async def cmd_record(msg: Message):
 
 
 @router.message(Command("undo"))
-async def cmd_undo(msg: Message):
+async def cmd_undo(msg: Message, storage: Storage):
     if not guard(msg):
         return
     ok, n = storage.undo()
@@ -159,11 +154,11 @@ async def cmd_undo(msg: Message):
     )
 
 
-# ── /goal ────────────────────────────────────────────────────────────────────
+# ── /goal ─────────────────────────────────────────────────────────────────────
 
 
 @router.message(Command("goal"))
-async def cmd_goal(msg: Message):
+async def cmd_goal(msg: Message, storage: Storage):
     if not guard(msg):
         return
     parts = msg.text.split(maxsplit=1)

@@ -24,7 +24,6 @@ from bot.keyboards import back_to_reminders, reminders_menu
 from bot.storage import Storage
 
 router = Router()
-storage = Storage(settings.data_file)
 
 BUILTIN_KEYS = {"morning", "evening", "summary"}
 BUILTIN_NAMES = {"morning": "Утреннее", "evening": "Вечернее", "summary": "Итог дня"}
@@ -46,7 +45,7 @@ def _parse_time(s: str) -> tuple[int, int] | None:
 
 
 @router.message(Command("remind"))
-async def cmd_remind(msg: Message):
+async def cmd_remind(msg: Message, storage: Storage):
     if not guard(msg):
         return
 
@@ -58,9 +57,7 @@ async def cmd_remind(msg: Message):
     # ── /remind  →  show menu ────────────────────────────────────────────────
     if sub is None:
         r = storage.get_reminders()
-        await msg.answer(
-            "⏰ <b>Напоминания</b>", parse_mode="HTML", reply_markup=reminders_menu(r)
-        )
+        await msg.answer("⏰ <b>Напоминания</b>", parse_mode="HTML", reply_markup=reminders_menu(r))
         return
 
     # ── /remind on|off <key> ─────────────────────────────────────────────────
@@ -77,9 +74,7 @@ async def cmd_remind(msg: Message):
         r = storage.get_reminders()
         label = r.get(key, {}).get("label", key)
         await msg.answer(
-            f"<b>{label}</b> — {state}",
-            parse_mode="HTML",
-            reply_markup=back_to_reminders(),
+            f"<b>{label}</b> — {state}", parse_mode="HTML", reply_markup=back_to_reminders()
         )
         return
 
