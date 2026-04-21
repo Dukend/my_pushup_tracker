@@ -34,7 +34,7 @@ async def _answer(cq: CallbackQuery, text: str, keyboard=None):
 async def cb_main_menu(cq: CallbackQuery):
     if not guard(cq):
         return
-    await _answer(cq, "💪 <b>Pushup Tracker</b>\nВыбери действие:", main_menu())
+    await _answer(cq, "💪 <b>Push-up Tracker</b>\nВыбери действие:", main_menu())
 
 
 # ── Stats & info ──────────────────────────────────────────────────────────────
