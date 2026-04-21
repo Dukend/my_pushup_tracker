@@ -27,7 +27,7 @@ async def cmd_start(msg: Message):
     if not guard(msg):
         return
     await msg.answer(
-        "💪 <b>Pushup Tracker</b>\n\n"
+        "💪 <b>Push-up Tracker</b>\n\n"
         "Записывай отжимания, следи за прогрессом и не пропускай тренировки.\n\n"
         "<b>Быстрый старт:</b>\n"
         "• Напиши число — сразу запишется: <code>30</code>\n"
