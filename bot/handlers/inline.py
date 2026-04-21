@@ -46,7 +46,7 @@ async def cb_today(cq: CallbackQuery, storage: Storage):
         return
     today = storage.get_today(settings.timezone)
     goal = storage.get_goal()
-    await _answer(cq, f"📅 Сегодня: <b>{today}</b> / {goal}\n{progress_bar(today, goal)}")
+    await _answer(cq, f"📅 Сегодня: <b>{today}</b> / {goal} отжиманий.\n{progress_bar(today, goal)} раз.")
 
 
 @router.callback_query(lambda c: c.data == "total")
