@@ -1,6 +1,6 @@
-# 💪 Pushup Tracker Bot
+# 💪 Push-up Tracker Bot
 
-A lightweight Telegram bot to track your daily pushups, set goals, and stay consistent with smart reminders and a built-in todo list.
+A lightweight Telegram bot to track your daily push-ups, set goals, and stay consistent with smart reminders and a built-in todo list.
 
 Built with **Python 3.11+**, **aiogram 3**, and a single **JSON file** — no database required.
 
@@ -8,8 +8,8 @@ Built with **Python 3.11+**, **aiogram 3**, and a single **JSON file** — no da
 
 ## Features
 
-**Pushups**
-- Track pushups — send a number or `/add 30`
+**Push-ups**
+- Track push-ups — send a number or `/add 30`
 - Daily goal with progress bar — `/goal 100`
 - Progress bar shows overachievement: `[██████████▓▓] 120% 🔥`
 - 7-day history with visual bars + weekly summary (total, goal hit N/7, avg/day)
@@ -27,7 +27,7 @@ Built with **Python 3.11+**, **aiogram 3**, and a single **JSON file** — no da
 **Reminders**
 - 🌅 Morning — motivation + yesterday's result + today's task list
 - 💪 Evening — fires only if daily goal not yet met + urgent tasks
-- 📋 End-of-day summary — pushups + tasks done/remaining
+- 📋 End-of-day summary — push-ups + tasks done/remaining
 - ➕ Custom reminders with your own label, time, and task list — via FSM dialog
 - All reminders togglable and reschedulable from inline menu
 
@@ -54,7 +54,7 @@ pushup_tracker/
 │
 ├── bot/
 │   ├── config.py                # settings from env vars (singleton)
-│   ├── storage.py               # pushup / goal / reminder persistence
+│   ├── storage.py               # push-up / goal / reminder persistence
 │   ├── todo.py                  # todo list persistence + archive
 │   ├── keyboards.py             # all InlineKeyboardMarkup builders
 │   ├── formatters.py            # reusable message text builders
@@ -137,12 +137,12 @@ Resource usage: ~20 MB RAM, ~0% CPU.
 
 ## Commands
 
-### Pushups
+### Push-ups
 
 | Command | Description |
 |---|---|
 | `/start` | Show main menu |
-| `/add 30` | Add 30 pushups |
+| `/add 30` | Add 30 push-ups |
 | `30` | Same — just send a number |
 | `/today` | Today's count |
 | `/total` | All-time total |
@@ -188,7 +188,7 @@ Custom reminders can also be created via the `➕` button in the reminders menu 
 |---|---|---|
 | `morning` | 07:30 | Every day — shows task list |
 | `evening` | 20:00 | Only if daily goal **not** reached — shows urgent tasks |
-| `summary` | 22:00 | Every day — pushup result + tasks done/remaining |
+| `summary` | 22:00 | Every day — push-up result + tasks done/remaining |
 | custom | your time | Every day — shows active task list |
 
 Completed tasks are auto-archived at `00:01` into `todo_archive.YYYY-MM-DD` in the JSON file.
