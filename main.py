@@ -1,5 +1,5 @@
 """
-Pushup Tracker Bot — entry point.
+Push-up Tracker Bot — entry point.
 Run: python main.py
 """
 
@@ -25,7 +25,6 @@ log = logging.getLogger(__name__)
 
 
 async def _set_commands(bot: Bot) -> None:
-    """#11 — register command hints visible in Telegram UI."""
     await bot.set_my_commands([
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="add", description="Добавить отжимания: /add 30"),
